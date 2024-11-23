@@ -1,147 +1,144 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-  <head>
-    <title>BabelPod</title>
-    <meta name="viewport" content="width=device-width; initial-scale=1.5" />
-    <style>
-      body {
-        font-family: Helvetica;
-        font-size: 14px;
-        margin: 0px;
-      }
-      h1 {
-        font-size: 1.8em;
-        background-color: grey;
-        color: white;
-        padding: 4px;
-        margin: 0px 0px 10px 0px;
-        width: 100%;
-      }
-      label {
-        font-size: 1.3em;
-        font-weight: bold;
-        margin: 4px;
-      }
-      select {
-        display: block;
-        width: 98%;
-        max-width: 496px;
-        font-family: inherit;
-        font-size: 1em;
-        margin-bottom: 10px;
-        margin-left: 4px;
-      }
-      input.slider {
-        max-width: 425px;
-        width: 100%;
-      }
-      .flexbox {
-        display: flex;
-        align-items: center;
-        width: 98%;
-        max-width: 500px;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>BabelPod</h1>
-      <label>Input</label>
-      <select id="input" size="4">
-        <option value="void">None</option>
-      </select>
-      <label>Output</label>
-      <select id="output" size="4">
-        <option value="void">None</option>
-      </select>
-      <div class="flexbox">
-        <label>Volume</label>
-        <input type="range" min="1" max="100" value="50" class="slider" id="outputVolume" list="ticks">
-        <datalist id="ticks">
-          <option value="0" label="0%">
-          <option value="10">
-          <option value="20">
-          <option value="30">
-          <option value="40">
-          <option value="50" label="50%">
-          <option value="60">
-          <option value="70">
-          <option value="80">
-          <option value="90">
-          <option value="100" label="100%">
-        </datalist>
-      </div>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-      var socket = io();
-      var currentInput = "void";
-      var currentOutput = "void";
-      socket.on('switched_input', function(newInput){
-        console.log('switched_input', newInput);
-        if (currentInput !== newInput){
-          currentInput = newInput;
-          var inputEl = document.getElementById('input');
-          inputEl.value = newInput;
-        };
+<head>
+  <title>BabelPod</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .flexbox {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 20px;
+    }
+    h1 {
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #ddd;
+    }
+    .section {
+      border: 1px solid #ccc;
+      padding: 15px;
+      border-radius: 5px;
+    }
+    .output-item, .input-item {
+      display: flex;
+      align-items: center;
+      margin: 5px 0;
+      gap: 10px;
+    }
+    .volume-control {
+      width: 100px;
+    }
+    select {
+      padding: 5px;
+      margin: 5px 0;
+    }
+  </style>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    var socket = io();
+    var selectedOutputs = new Set();
+    var outputVolumes = new Map();
+
+    // Input handling
+    socket.on('available_inputs', function(inputs) {
+      var select = document.getElementById('input-select');
+      select.innerHTML = '';
+      inputs.forEach(function(input) {
+        var option = document.createElement('option');
+        option.value = input.id;
+        option.text = input.name;
+        select.appendChild(option);
       });
-      socket.on('switched_output', function(newOutput){
-        console.log('switched_output', newOutput);
-        if (currentOutput !== newOutput){
-          currentOutput = newOutput;
-          var outputEl = document.getElementById('output');
-          outputEl.value = newOutput;
-        }
-      });
-      socket.on('changed_output_volume', function(volume){
-        console.log('changed_output_volume', volume);
-        var outputVolumeEl = document.getElementById('outputVolume');
-        outputVolumeEl.value = volume;
-      });
-      socket.on('available_inputs', function(inputs){
-        console.log('available_inputs', inputs);
-        var inputEl = document.getElementById('input');
-        // remove current values
-        while (inputEl.firstChild) {
-          inputEl.removeChild(inputEl.firstChild);
-        }
-        for (var input of inputs){
-          var newOption = document.createElement('option');
-          newOption.innerText = input.name;
-          newOption.setAttribute('value', input.id);
-          inputEl.appendChild(newOption);
-          if (input.id === currentInput) {
-            inputEl.value = input.id;
-          }
-        }
-      });
-      socket.on('available_outputs', function(outputs){
-        console.log('available_outputs', outputs);
-        var outputEl = document.getElementById('output');
-        // remove current values
-        while (outputEl.firstChild) {
-          outputEl.removeChild(outputEl.firstChild);
-        }
-        for (var output of outputs){
-          var newOption = document.createElement('option');
-          newOption.innerText = output.name;
-          newOption.setAttribute('value', output.id);
-          outputEl.appendChild(newOption);
-          if (output.id === currentOutput) {
-            outputEl.value = output.id;
-          }
-        }
-      });
+    });
+
+    socket.on('switched_input', function(msg) {
+      document.getElementById('input-select').value = msg;
+    });
+
+    function switchInput(value) {
+      socket.emit('switch_input', value);
+    }
+
+    // Output handling
+    socket.on('available_outputs', function(outputs) {
+      var outputDiv = document.getElementById('outputs');
+      outputDiv.innerHTML = '';
       
-      document.addEventListener('change', async ev => {
-        if(ev.target.id === 'input') {
-          socket.emit('switch_input', ev.target.value);
-        }
-        if(ev.target.id === 'output') {
-          socket.emit('switch_output', ev.target.value);
-        }
-        if(ev.target.id === 'outputVolume') {
-          socket.emit('change_output_volume', ev.target.value);
-        }
+      outputs.forEach(function(output) {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'output-item';
+        
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = output.id;
+        checkbox.checked = selectedOutputs.has(output.id);
+        checkbox.onchange = function() {
+          if (this.checked) {
+            selectedOutputs.add(output.id);
+          } else {
+            selectedOutputs.delete(output.id);
+          }
+          socket.emit('switch_outputs', Array.from(selectedOutputs));
+        };
+        
+        var label = document.createElement('label');
+        label.htmlFor = output.id;
+        label.textContent = output.name;
+        
+        var volume = document.createElement('input');
+        volume.type = 'range';
+        volume.min = 0;
+        volume.max = 100;
+        volume.className = 'volume-control';
+        volume.value = outputVolumes.get(output.id) || 20;
+        volume.onchange = function() {
+          outputVolumes.set(output.id, this.value);
+          socket.emit('change_output_volume', {
+            id: output.id,
+            volume: parseInt(this.value)
+          });
+        };
+        
+        wrapper.appendChild(checkbox);
+        wrapper.appendChild(label);
+        wrapper.appendChild(volume);
+        outputDiv.appendChild(wrapper);
       });
-    </script>
-  </body>
+    });
+
+    socket.on('switched_outputs', function(outputs) {
+      selectedOutputs = new Set(outputs);
+      // Update checkboxes to reflect current state
+      outputs.forEach(function(outputId) {
+        var checkbox = document.getElementById(outputId);
+        if (checkbox) checkbox.checked = true;
+      });
+    });
+
+    socket.on('changed_output_volume', function(data) {
+      outputVolumes.set(data.id, data.volume);
+      var volumeSlider = document.querySelector(`#${data.id} + label + input[type="range"]`);
+      if (volumeSlider) volumeSlider.value = data.volume;
+    });
+  </script>
+</head>
+<body>
+  <h1>BabelPod</h1>
+  <div class="flexbox">
+    <div class="section">
+      <h3>Input</h3>
+      <select id="input-select" onchange="switchInput(this.value)"></select>
+    </div>
+    
+    <div class="section">
+      <h3>Outputs</h3>
+      <div id="outputs"></div>
+    </div>
+  </div>
+</body>
 </html>

@@ -1,272 +1,86 @@
-var app = require('express')();
-var http = require('http').Server(app);
-var io = require('socket.io')(http);
-var spawn = require('child_process').spawn;
-var util = require('util');
-var stream = require('stream');
-var mdns = require('mdns-js');
-var fs = require('fs');
-var AirTunes = require('airtunes2');
+const express = require('express');
+const app = express();
+const http = require('http').Server(app);
+const io = require('socket.io')(http);
+const debug = require('debug')('babelpod');
 
-var airtunes = new AirTunes();
+// Import configuration
+const { config } = require('./src/config');
 
-// Create ToVoid and FromVoid streams so we always have somewhere to send to and from.
-util.inherits(ToVoid, stream.Writable);
-function ToVoid () {
-  if (!(this instanceof ToVoid)) return new ToVoid();
-  stream.Writable.call(this);
-}
-ToVoid.prototype._write = function (chunk, encoding, cb) {
-}
+// Import managers and handlers
+const AirplayManager = require('./src/devices/airplay');
+const PCMManager = require('./src/devices/pcm');
+const InputStreamManager = require('./src/streams/inputStream');
+const DeviceDiscovery = require('./src/discovery/deviceDiscovery');
+const setupRoutes = require('./src/server/routes');
+const SocketHandler = require('./src/server/socketHandlers');
 
-util.inherits(FromVoid, stream.Readable);
-function FromVoid () {
-  if (!(this instanceof FromVoid)) return new FromVoid();
-  stream.Readable.call(this);
-}
-FromVoid.prototype._read = function (chunk, encoding, cb) {
-}
+// Create instances of managers
+const airplayManager = new AirplayManager();
+const pcmManager = new PCMManager();
+const inputManager = new InputStreamManager();
+const deviceDiscovery = new DeviceDiscovery();
 
-var currentInput = "void";
-var currentOutput = "void";
-var inputStream = new FromVoid();
-var outputStream = new ToVoid();
-var airplayDevice = null;
-var arecordInstance = null;
-var aplayInstance = null;
-var volume = 20;
-var availableOutputs = [];
-var availablePcmOutputs = []
-var availableAirplayOutputs = [];
-var availableInputs = [];
-var availableBluetoothInputs = [];
-var availablePcmInputs = [];
+// Bundle managers for dependency injection
+const deviceManagers = {
+  airplayManager,
+  pcmManager,
+  inputManager
+};
 
-// Search for new PCM input/output devices
-function pcmDeviceSearch(){
-  try {
-    var pcmDevicesString = fs.readFileSync('/proc/asound/pcm', 'utf8');
-  } catch (e) {
-    console.log("audio input/output pcm devices could not be found");
-    return;
-  }
-  var pcmDevicesArray = pcmDevicesString.split("\n").filter(line => line!="");
-  var pcmDevices = pcmDevicesArray.map(device => {var splitDev = device.split(":");return {id: "plughw:"+splitDev[0].split("-").map(num => parseInt(num, 10)).join(","), name:splitDev[2].trim(), output: splitDev.some(part => part.includes("playback")), input: splitDev.some(part => part.includes("capture"))}});
-  availablePcmOutputs = pcmDevices.filter(dev => dev.output);
-  availablePcmInputs = pcmDevices.filter(dev => dev.input);
-  updateAllInputs();
-  updateAllOutputs();
-}
-// Perform initial search for PCM devices
-pcmDeviceSearch();
+// Set up express middleware
+app.use(express.json());
+app.use(express.static('public'));
 
-// Watch for new PCM input/output devices every 10 seconds
-var pcmDeviceSearchLoop = setInterval(pcmDeviceSearch, 10000);
+// Set up routes
+setupRoutes(app, deviceManagers);
 
-// Watch for new Bluetooth devices
-/*blue.Bluetooth();
-blue.on(blue.bluetoothEvents.Device, function (devices) {
-  console.log('devices:' + JSON.stringify(devices,null,2));
-  availableBluetoothInputs = [];
-  for (var device of blue.devices){
-    availableBluetoothInputs.push({
-      'name': 'Bluetooth: '+device.name,
-      'id': 'bluealsa:HCI=hci0,DEV='+device.mac+',PROFILE=a2dp,DELAY=10000'
-    });
-  }
-  updateAllInputs();
-})*/
+// Set up socket handlers
+const socketHandler = new SocketHandler(io, deviceManagers, deviceDiscovery);
+socketHandler.setup();
 
-function updateAllInputs(){
-  var defaultInputs = [
-    {
-      'name': 'None',
-      'id': 'void'
-    }
-  ];
-  availableInputs = defaultInputs.concat(availablePcmInputs, availableBluetoothInputs);
-  // todo only emit if updated
-  io.emit('available_inputs', availableInputs);
-}
-updateAllInputs();
+// Start device discovery
+deviceDiscovery.start();
 
-function updateAllOutputs(){
-  var defaultOutputs = [
-    {
-      'name': 'None',
-      'id': 'void',
-      'type': 'void'
-    }
-  ];
-  availableOutputs = defaultOutputs.concat(availablePcmOutputs, availableAirplayOutputs);
-  // todo only emit if updated
-  io.emit('available_outputs', availableOutputs);
-}
-updateAllOutputs();
-
-var browser = mdns.createBrowser(mdns.tcp('raop'));
-browser.on('ready', function () {
-    browser.discover(); 
-});
-browser.on('update', function (data) {
-  // console.log("service up: ", data);
-  // console.log(service.addresses);
-  // console.log(data.fullname);
-  if (data.fullname){
-    var splitName = /([^@]+)@(.*)\._raop\._tcp\.local/.exec(data.fullname);
-    if (splitName != null && splitName.length > 1){
-      var id = 'airplay_'+data.addresses[0]+'_'+data.port;
-
-      if (!availableAirplayOutputs.some(e => e.id === id)) {
-        availableAirplayOutputs.push({
-          'name': 'AirPlay: ' + splitName[2],
-          'id': id,
-          'type': 'airplay'
-          // 'address': service.addresses[1],
-          // 'port': service.port,
-          // 'host': service.host
-        });
-        updateAllOutputs();
-      }
-    }
-  }
-  // console.log(airplayDevices);
-});
-// browser.on('serviceDown', function(service) {
-//   console.log("service down: ", service);
-// });
-
-function cleanupCurrentInput(){
-  inputStream.unpipe(outputStream);
-  if (arecordInstance !== null){
-    arecordInstance.kill();
-    arecordInstance = null;
-  }
-}
-
-function cleanupCurrentOutput(){
-  console.log("inputStream", inputStream);
-  console.log("outputStream", outputStream);
-  inputStream.unpipe(outputStream);
-  if (airplayDevice !== null) {
-    airplayDevice.stop(function(){
-      console.log('stopped airplay device');
-    })
-    airplayDevice = null;
-  }
-  if (aplayInstance !== null){
-    aplayInstance.kill();
-    aplayInstance = null;
-  }
-}
-
-app.get('/', function(req, res){
-  res.sendFile(__dirname + '/index.html');
+// Error handling
+process.on('uncaughtException', (err) => {
+  debug('Uncaught Exception:', err);
+  // Perform cleanup
+  deviceDiscovery.stop();
+  airplayManager.cleanupAll();
+  pcmManager.cleanupAll();
+  inputManager.cleanup();
 });
 
-let logPipeError = function(e) {console.log('inputStream.pipe error: ' + e.message)};
-
-io.on('connection', function(socket){
-  console.log('a user connected');
-  // set current state
-  socket.emit('available_inputs', availableInputs);
-  socket.emit('available_outputs', availableOutputs);
-  socket.emit('switched_input', currentInput);
-  socket.emit('switched_output', currentOutput);
-  socket.emit('changed_output_volume', volume);
-  
-  socket.on('disconnect', function(){
-    console.log('user disconnected');
-  });
-  
-  socket.on('change_output_volume', function(msg){
-    console.log('change_output_volume: ', msg);
-    volume = msg;
-    if (airplayDevice !== null) {
-      airplayDevice.setVolume(volume, function(){
-        console.log('changed airplay volume');
-      });
-    }
-    if (aplayInstance !== null){
-      console.log('todo: update correct speaker based on currentOutput device ID');
-      console.log(currentOutput);
-      var amixer = spawn("amixer", [
-        '-c', "1",
-        '--', "sset",
-        'Speaker', volume+"%"
-      ]);
-    }
-    io.emit('changed_output_volume', msg);
-  });
-  
-  socket.on('switch_output', function(msg){
-    console.log('switch_output: ' + msg);
-    currentOutput = msg;
-    cleanupCurrentOutput();
-
-    // TODO: rewrite how devices are stored to avoid the array split thingy
-    if (msg.startsWith("airplay")){
-      var split = msg.split("_");
-      var host = split[1];
-      var port = split[2];
-      console.log('adding device: ' + host + ':' + port);
-      airplayDevice = airtunes.add(host, {port: port, volume: volume});
-      airplayDevice.on('status', function(status) {
-        console.log('airplay status: ' + status);
-        if(status === 'ready'){
-          outputStream = airtunes;
-          inputStream.pipe(outputStream).on('error', logPipeError);
-
-          // at this moment the rtsp setup is not fully done yet and the status
-          // is still SETVOLUME. There's currently no way to check if setup is
-          // completed, so we just wait a second before setting the track info.
-          // Unfortunately we don't have the fancy input name here. Will get fixed
-          // with a better way of storing devices.
-          setTimeout(() => { airplayDevice.setTrackInfo(currentInput, 'BabelPod', '') }, 1000);
-        }
-      });
-    }
-    if (msg.startsWith("plughw:")){
-      aplayInstance = spawn("aplay", [
-        '-D', msg,
-        '-c', "2",
-        '-f', "S16_LE",
-        '-r', "44100"
-      ]);
-
-      outputStream = aplayInstance.stdin;
-      inputStream.pipe(outputStream).on('error', logPipeError);
-    }
-    if (msg === "void"){
-      outputStream = new ToVoid();
-      inputStream.pipe(outputStream).on('error', logPipeError);
-    }
-    io.emit('switched_output', msg);
-  });
-
-  socket.on('switch_input', function(msg){
-    console.log('switch_input: ' + msg);
-    currentInput = msg;
-    cleanupCurrentInput();
-    if (msg === "void"){
-      inputStream = new FromVoid();
-      inputStream.pipe(outputStream).on('error', logPipeError);
-    }
-    if (msg !== "void"){
-      arecordInstance = spawn("arecord", [
-        '-D', msg,
-        '-c', "2",
-        '-f', "S16_LE",
-        '-r', "44100"
-      ]);
-      inputStream = arecordInstance.stdout;
-
-      inputStream.pipe(outputStream).on('error', logPipeError);
-    }
-    io.emit('switched_input', msg);
-  });
+process.on('SIGTERM', () => {
+  debug('Received SIGTERM');
+  // Perform cleanup
+  deviceDiscovery.stop();
+  airplayManager.cleanupAll();
+  pcmManager.cleanupAll();
+  inputManager.cleanup();
+  process.exit(0);
 });
 
-http.listen(3000, function(){
-  console.log('listening on *:3000');
+process.on('SIGINT', () => {
+  debug('Received SIGINT');
+  // Perform cleanup
+  deviceDiscovery.stop();
+  airplayManager.cleanupAll();
+  pcmManager.cleanupAll();
+  inputManager.cleanup();
+  process.exit(0);
 });
+
+// Start server
+http.listen(config.server.port, config.server.host, () => {
+  debug(`Server running at http://${config.server.host}:${config.server.port}/`);
+});
+
+// Export for testing
+module.exports = {
+  app,
+  io,
+  deviceManagers,
+  deviceDiscovery
+};
