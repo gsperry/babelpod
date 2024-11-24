@@ -2,13 +2,16 @@
   "name": "babelpod",
   "version": "0.0.1",
   "description": "Add line-in and Bluetooth input to the HomePod (or other AirPlay speakers). Intended to run on Raspberry Pi.",
-    "scripts": {
-      "dev:server": "DEBUG=babelpod* tsx watch src/server/index.ts",
-      "dev:client": "vite",
-      "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" --kill-others --names \"server,client\" --prefix-colors \"blue,green\"",
-      "build": "tsc -p tsconfig.server.json && vite build",
-      "preview": "vite preview"
-    },
+  "scripts": {
+    "dev:server": "DEBUG=babelpod* tsx watch src/server/index.ts",
+    "dev:client": "vite",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" --kill-others --names \"server,client\" --prefix-colors \"blue,green\"",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:client && npm run build:server",
+    "start": "NODE_ENV=production DEBUG=babelpod* tsx src/server/index.ts",
+    "preview": "vite preview"
+  },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-icons": "^1.3.0",
