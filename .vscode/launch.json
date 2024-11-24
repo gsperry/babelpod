@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "node",
+        "request": "launch",
+        "name": "Launch BabelPod",
+        "skipFiles": ["<node_internals>/**"],
+        "program": "${workspaceFolder}/src/index.ts",
+        "preLaunchTask": "tsc: build - tsconfig.json",
+        "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+        "sourceMaps": true,
+        "console": "integratedTerminal",
+        "internalConsoleOptions": "neverOpen",
+        "env": {
+          "DEBUG": "babelpod*"
+        }
+      },
+      {
+        "type": "node",
+        "request": "attach",
+        "name": "Attach to Running Process",
+        "port": 9229,
+        "sourceMaps": true,
+        "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+      }
+    ]
+  }

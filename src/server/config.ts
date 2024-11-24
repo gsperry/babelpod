@@ -1,9 +1,12 @@
-const debug = require('debug')('babelpod:config');
+import debugModule from 'debug';
+import { Config } from '../types/index.js';  // Updated import path
+
+const logger: debugModule.IDebugger = debugModule('babelpod:config');
 
 // Default configuration
-const config = {
+const config: Config = {
   server: {
-    port: process.env.PORT || 3000,
+    port: parseInt(process.env.PORT || '3000', 10),
     host: process.env.HOST || '0.0.0.0'
   },
   audio: {
@@ -29,9 +32,14 @@ const config = {
   }
 };
 
+// Type for partial config updates
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
 // Function to validate and update config at runtime
-function updateConfig(newConfig) {
-  debug('Updating configuration');
+function updateConfig(newConfig: DeepPartial<Config>): Config {
+  logger('Updating configuration');
   
   // Validate and merge server config
   if (newConfig.server) {
@@ -56,11 +64,12 @@ function updateConfig(newConfig) {
     }
   }
 
-  debug('Updated configuration:', config);
+  logger('Updated configuration:', config);
   return config;
 }
 
-module.exports = {
+export {
   config,
-  updateConfig
+  updateConfig,
+  type DeepPartial
 };

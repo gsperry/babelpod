@@ -2,10 +2,49 @@
   "name": "babelpod",
   "version": "0.0.1",
   "description": "Add line-in and Bluetooth input to the HomePod (or other AirPlay speakers). Intended to run on Raspberry Pi.",
+    "scripts": {
+      "dev:server": "DEBUG=babelpod* tsx watch src/server/index.ts",
+      "dev:client": "vite",
+      "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" --kill-others --names \"server,client\" --prefix-colors \"blue,green\"",
+      "build": "tsc -p tsconfig.server.json && vite build",
+      "preview": "vite preview"
+    },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.2",
+    "@radix-ui/react-icons": "^1.3.0",
+    "@radix-ui/react-slider": "^1.2.1",
+    "@radix-ui/react-slot": "^1.1.0",
     "airtunes2": "git://github.com/ciderapp/node_airtunes2.git#a8df031a3500f3577733cea8badeb136e5362f49",
-    "express": "^4.17.1",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "express": "^4.21.1",
+    "lucide-react": "^0.460.0",
     "mdns-js": "^1.0.3",
-    "socket.io": "^2.2.0"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "tailwind-merge": "^2.5.4",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.12",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@types/socket.io-client": "^1.4.36",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react-swc": "^3.7.1",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "nodemon": "^3.0.2",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12"
   }
 }

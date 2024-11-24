@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/client/*": ["src/client/*"],
+      "@/server/*": ["src/server/*"],
+      "@types": ["src/types"],
+      "@/components/*": ["src/client/components/*"],
+      "@/utils/*": ["src/lib/utils"]
+    }
+  },
+  "include": ["src/client/**/*", "src/lib/**/*", "src/types/**/*"],
+  "exclude": ["node_modules", "dist", "src/server/**/*"]
+}

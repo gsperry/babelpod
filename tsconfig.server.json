@@ -1,0 +1,25 @@
+{
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifiers": true
+  },
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@types": ["./src/types"]
+    }
+  },
+  "include": ["src/server/**/*", "src/types/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
