@@ -26,6 +26,7 @@ const config: Config = {
     cardNumber: 1,  // Default sound card for amixer
     mixerControl: 'Speaker'
   },
+  
   discovery: {
     pcmScanInterval: 10000,  // 10 seconds
     mdnsType: 'raop'

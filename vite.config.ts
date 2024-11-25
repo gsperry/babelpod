@@ -4,13 +4,18 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  css: {
+    modules: {
+      localsConvention: 'camelCase'
+    }
+  },
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-      '@/client': path.resolve(__dirname, 'src/client'),
-      '@/server': path.resolve(__dirname, 'src/server'),
-      '@/components': path.resolve(__dirname, 'src/client/components'),
-      '@/utils': path.resolve(__dirname, 'src/lib/utils'),    },
+    alias: [
+      { find: '@', replacement: path.resolve(__dirname, 'src') },
+      { find: '@/client', replacement: path.resolve(__dirname, 'src/client') },
+      { find: '@/components', replacement: path.resolve(__dirname, 'src/client/components') },
+      { find: '@/utils', replacement: path.resolve(__dirname, 'src/lib/utils') }
+    ]
   },
   build: {
     outDir: 'dist/client',

@@ -22,12 +22,9 @@
     "paths": {
       "@/*": ["./src/*"],
       "@/client/*": ["src/client/*"],
-      "@/server/*": ["src/server/*"],
-      "@types": ["src/types"],
       "@/components/*": ["src/client/components/*"],
       "@/utils/*": ["src/lib/utils"]
-    }
-  },
+    }  },
   "include": ["src/client/**/*", "src/lib/**/*", "src/types/**/*"],
   "exclude": ["node_modules", "dist", "src/server/**/*"]
 }
