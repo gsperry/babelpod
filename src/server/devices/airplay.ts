@@ -1,6 +1,7 @@
 import { Readable } from 'stream';
+import { EventEmitter } from 'events';
 import debugModule from 'debug';
-import { AirplayManager as IAirplayManager } from '../../types/index';
+import { AirplayManager as IAirplayManager } from '../../types';
 import { config } from '../config';
 
 const logger = debugModule('babelpod:airplay');
@@ -19,17 +20,16 @@ interface AirTunesBase {
 }
 
 // Use require since the module doesn't support ES imports
-// Note: We're preserving the actual runtime behavior while satisfying TypeScript
 const AirTunes = require('airtunes2') as { new(): AirTunesBase & { pipe: unknown } };
 
-export class AirplayManager implements IAirplayManager {
-  // Use any for airtunes to preserve the working stream functionality
+export class AirplayManager extends EventEmitter implements IAirplayManager {
   private airtunes: any;
   private activeDevices: Map<string, AirTunesDevice>;
   private deviceVolumes: Map<string, number>;
   private currentStream: Readable | null;
 
   constructor() {
+    super(); // Initialize EventEmitter
     logger('Creating new AirplayManager');
     this.airtunes = new AirTunes();
     this.activeDevices = new Map();
@@ -38,10 +38,12 @@ export class AirplayManager implements IAirplayManager {
 
     this.airtunes.on('buffer', (status: string) => {
       logger('AirTunes buffer status:', status);
+      this.emit('buffer', status); // Forward the event
     });
 
     this.airtunes.on('error', (err: Error) => {
       logger('AirTunes error:', err);
+      this.emit('error', err); // Forward the error
     });
   }
 
@@ -69,14 +71,18 @@ export class AirplayManager implements IAirplayManager {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         logger('Device setup timeout for:', deviceId);
-        reject(new Error('Device setup timeout'));
+        const error = new Error('Device setup timeout');
+        this.emit('setupFailed', { deviceId, error });
+        reject(error);
       }, config.airplay.setupTimeout);
 
       device.on('status', (status: string) => {
         logger('AirPlay device %s status: %s', deviceId, status);
+        this.emit('deviceStatus', { deviceId, status });
         if (status === 'ready') {
           clearTimeout(timeout);
           this.activeDevices.set(deviceId, device);
+          this.emit('deviceReady', deviceId);
           resolve(device);
         }
       });
@@ -85,6 +91,7 @@ export class AirplayManager implements IAirplayManager {
         logger('AirPlay device %s error: %s', deviceId, err);
         clearTimeout(timeout);
         this.cleanup(deviceId);
+        this.emit('deviceError', { deviceId, error: err });
         reject(err);
       });
     });
@@ -105,23 +112,32 @@ export class AirplayManager implements IAirplayManager {
       logger('Setting up new stream pipe');
       this.currentStream = inputStream;
       
-      // Set up pipe with error handling
       try {
-        // Preserve the original piping behavior
         inputStream.pipe(this.airtunes);
         logger('Stream piped successfully');
+        this.emit('streamUpdated', true);
       } catch (err) {
         logger('Error piping stream:', err);
+        this.emit('streamError', err);
       }
     }
   }
 
-  setVolume(deviceId: string, volume: number): boolean {
+  async setVolume(deviceId: string, volume: number): Promise<boolean> {
+    logger('Setting volume for device %s to %d', deviceId, volume);
     const device = this.activeDevices.get(deviceId);
+    
     if (device) {
-      this.deviceVolumes.set(deviceId, volume);
-      device.setVolume(volume);
-      return true;
+      try {
+        this.deviceVolumes.set(deviceId, volume);
+        device.setVolume(volume);
+        this.emit('volumeChanged', { deviceId, volume });
+        return true;
+      } catch (err) {
+        logger('Error setting volume:', err);
+        this.emit('volumeError', { deviceId, error: err });
+        return false;
+      }
     }
     return false;
   }
@@ -135,13 +151,16 @@ export class AirplayManager implements IAirplayManager {
           this.currentStream.unpipe(this.airtunes);
         } catch (err) {
           logger('Error unpiping stream:', err);
+          this.emit('cleanupError', { deviceId, error: err });
         }
       }
       device.stop(() => {
         logger('Stopped AirPlay device:', deviceId);
+        this.emit('deviceStopped', deviceId);
       });
       this.activeDevices.delete(deviceId);
       this.deviceVolumes.delete(deviceId);
+      this.emit('deviceCleaned', deviceId);
     }
   }
 
@@ -150,6 +169,7 @@ export class AirplayManager implements IAirplayManager {
     for (const deviceId of this.activeDevices.keys()) {
       this.cleanup(deviceId);
     }
+    this.emit('allDevicesCleaned');
   }
 
   isActive(deviceId: string): boolean {

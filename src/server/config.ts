@@ -1,5 +1,6 @@
+// src/server/config.ts
 import debugModule from 'debug';
-import { Config } from '../types/index.js';  // Updated import path
+import { Config } from '../types/index.js';
 
 const logger: debugModule.IDebugger = debugModule('babelpod:config');
 
@@ -18,17 +19,33 @@ const config: Config = {
   },
   airplay: {
     defaultVolume: 20,
-    setupTimeout: 10000,  // 10 seconds
+    setupTimeout: 10000,
     reconnectAttempts: 3
   },
   pcm: {
     defaultVolume: 20,
-    cardNumber: 1,  // Default sound card for amixer
+    cardNumber: 1,
     mixerControl: 'Speaker'
   },
-  
+  bluetooth: {
+    defaultVolume: 20,
+    setupTimeout: 10000,
+    reconnectAttempts: 3,
+    scanInterval: 10000,
+    profiles: {
+      output: ['A2DP-SINK', 'HSP', 'HFP'],
+      input: ['A2DP-SOURCE', 'HSP', 'HFP']
+    },
+    bitpool: {
+      min: 40,
+      max: 64
+    },
+    codecs: ['SBC', 'AAC'],
+    autoConnect: true,
+    discoveryDuration: 30000
+  },
   discovery: {
-    pcmScanInterval: 10000,  // 10 seconds
+    pcmScanInterval: 10000,
     mdnsType: 'raop'
   }
 };
@@ -62,6 +79,59 @@ function updateConfig(newConfig: DeepPartial<Config>): Config {
     }
     if (typeof newConfig.audio.chunkSize === 'number') {
       config.audio.chunkSize = newConfig.audio.chunkSize;
+    }
+  }
+
+  // Validate and merge bluetooth config
+  if (newConfig.bluetooth) {
+    if (typeof newConfig.bluetooth.defaultVolume === 'number') {
+      config.bluetooth.defaultVolume = newConfig.bluetooth.defaultVolume;
+    }
+    if (typeof newConfig.bluetooth.setupTimeout === 'number') {
+      config.bluetooth.setupTimeout = newConfig.bluetooth.setupTimeout;
+    }
+    if (typeof newConfig.bluetooth.scanInterval === 'number') {
+      config.bluetooth.scanInterval = newConfig.bluetooth.scanInterval;
+    }
+    if (typeof newConfig.bluetooth.discoveryDuration === 'number') {
+      config.bluetooth.discoveryDuration = newConfig.bluetooth.discoveryDuration;
+    }
+    if (newConfig.bluetooth.profiles) {
+      if (Array.isArray(newConfig.bluetooth.profiles.output)) {
+        const outputProfiles = newConfig.bluetooth.profiles.output.filter((profile): profile is string => 
+          typeof profile === 'string'
+        );
+        if (outputProfiles.length > 0) {
+          config.bluetooth.profiles.output = outputProfiles;
+        }
+      }
+      if (Array.isArray(newConfig.bluetooth.profiles.input)) {
+        const inputProfiles = newConfig.bluetooth.profiles.input.filter((profile): profile is string => 
+          typeof profile === 'string'
+        );
+        if (inputProfiles.length > 0) {
+          config.bluetooth.profiles.input = inputProfiles;
+        }
+      }
+    }
+    if (newConfig.bluetooth.bitpool) {
+      if (typeof newConfig.bluetooth.bitpool.min === 'number') {
+        config.bluetooth.bitpool.min = newConfig.bluetooth.bitpool.min;
+      }
+      if (typeof newConfig.bluetooth.bitpool.max === 'number') {
+        config.bluetooth.bitpool.max = newConfig.bluetooth.bitpool.max;
+      }
+    }
+    if (Array.isArray(newConfig.bluetooth.codecs)) {
+      const codecs = newConfig.bluetooth.codecs.filter((codec): codec is string => 
+        typeof codec === 'string'
+      );
+      if (codecs.length > 0) {
+        config.bluetooth.codecs = codecs;
+      }
+    }
+    if (typeof newConfig.bluetooth.autoConnect === 'boolean') {
+      config.bluetooth.autoConnect = newConfig.bluetooth.autoConnect;
     }
   }
 

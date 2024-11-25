@@ -9,12 +9,16 @@ import { join } from 'path';
 import { config } from './config';
 
 // Import managers and handlers
-import { AirplayManager } from './devices/airplay';
-import { PCMManager } from './devices/pcm';
+import { 
+  AirplayManager, 
+  createPCMManager,
+  createBluetoothManager 
+} from './devices';
 import { InputStreamManager } from './streams/inputStream';
 import { DeviceDiscovery } from './discovery/deviceDiscovery';
 import { setupRoutes } from './routes';
 import { SocketHandler } from './socketHandlers';
+import { DeviceManagers } from '../types';
 
 const logger = debugModule('babelpod');
 const isProd = process.env.NODE_ENV === 'production';
@@ -26,16 +30,10 @@ const http = createServer(app);
 // Initialize Socket.IO with environment-specific config
 const io = new SocketIOServer(http, {
   cors: isProd ? {
-    // In production, specify allowed origins explicitly
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || [
-      // Add your production domain(s) here
-      'http://your-domain.com',
-      'https://your-domain.com'
-    ],
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost'],
     methods: ["GET", "POST"],
     credentials: true
   } : {
-    // In development, allow localhost access
     origin: "http://localhost:5173",
     methods: ["GET", "POST"],
     credentials: true
@@ -48,35 +46,43 @@ const io = new SocketIOServer(http, {
 
 // Create instances of managers
 const airplayManager = new AirplayManager();
-const pcmManager = new PCMManager();
+const pcmManager = createPCMManager();
 const inputManager = new InputStreamManager(config.audio);
+const bluetoothManager = createBluetoothManager();
 const deviceDiscovery = new DeviceDiscovery();
 
 // Bundle managers for dependency injection
-const deviceManagers = {
+const deviceManagers: DeviceManagers = {
   airplayManager,
   pcmManager,
-  inputManager
+  inputManager,
+  bluetoothManager
 };
 
-// Set up express middleware
+// Request logging middleware
+app.use((req, res, next) => {
+  logger(`${req.method} ${req.path}`);
+  next();
+});
+
+// Body parsing middleware
 app.use(express.json());
 
 if (isProd) {
   logger('Running in production mode');
   
+  // Log the directory we're serving from
+  const clientDir = join(__dirname, '../../dist/client');
+  logger('Serving static files from:', clientDir);
+  
   // Serve static files from the production build
-  app.use(express.static(join(__dirname, '../client')));
+  app.use(express.static(clientDir));
   
   // Handle CORS for production
   app.use((req, res, next) => {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-      // Add your production domain(s) here
-      'http://your-domain.com',
-      'https://your-domain.com'
-    ];
-    
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost'];
     const origin = req.headers.origin;
+    
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     }
@@ -91,9 +97,13 @@ if (isProd) {
     next();
   });
 
+  // Set up API routes
+  setupRoutes(app, deviceManagers);
+
   // Serve index.html for any unknown paths (client-side routing)
   app.get('*', (_req, res) => {
-    res.sendFile(join(__dirname, '../client/index.html'));
+    logger('Serving index.html for path:', _req.path);
+    res.sendFile(join(clientDir, 'index.html'));
   });
 } else {
   logger('Running in development mode');
@@ -106,10 +116,10 @@ if (isProd) {
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     next();
   });
-}
 
-// Set up routes
-setupRoutes(app, deviceManagers);
+  // Set up API routes
+  setupRoutes(app, deviceManagers);
+}
 
 // Set up socket handlers
 const socketHandler = new SocketHandler(io, deviceManagers, deviceDiscovery);
@@ -121,11 +131,7 @@ deviceDiscovery.start();
 // Error handling
 process.on('uncaughtException', (err: Error) => {
   logger('Uncaught Exception:', err);
-  // Perform cleanup
-  deviceDiscovery.stop();
-  airplayManager.cleanupAll();
-  pcmManager.cleanupAll();
-  inputManager.cleanup();
+  cleanup();
   process.exit(1);
 });
 
@@ -145,14 +151,17 @@ function cleanup() {
   airplayManager.cleanupAll();
   pcmManager.cleanupAll();
   inputManager.cleanup();
+  bluetoothManager.cleanupAll();
   process.exit(0);
 }
 
 // Start server with proper host binding
-const serverHost = isProd ? config.server.host : 'localhost';
-http.listen(config.server.port, serverHost, () => {
+const serverHost = isProd ? '0.0.0.0' : 'localhost';
+const port = config.server.port || 3000;
+
+http.listen(port, serverHost, () => {
   logger(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-  logger(`Server listening at http://${serverHost}:${config.server.port}/`);
+  logger(`Server listening at http://${serverHost}:${port}/`);
 });
 
 // Export for testing

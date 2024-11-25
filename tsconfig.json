@@ -7,6 +7,10 @@
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
