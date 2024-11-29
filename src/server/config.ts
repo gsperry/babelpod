@@ -1,9 +1,7 @@
-// src/server/config.ts
 import debugModule from 'debug';
 import { Config } from '../types/index.js';
 
 const logger: debugModule.IDebugger = debugModule('babelpod:config');
-
 // Default configuration
 const config: Config = {
   server: {

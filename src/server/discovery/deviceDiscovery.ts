@@ -6,6 +6,11 @@ import { config } from '../config';
 
 const logger = debugModule('babelpod:discovery');
 
+config.discovery = {
+  pcmScanInterval: parseInt(process.env.PCM_SCAN_INTERVAL || '10000'),
+  mdnsType: process.env.MDNS_TYPE || 'raop'
+};
+
 // Since mdns-js doesn't have types, we'll define what we need
 interface MDNSData {
   fullname?: string;

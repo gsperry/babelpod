@@ -28,7 +28,9 @@
       "@/client/*": ["src/client/*"],
       "@/components/*": ["src/client/components/*"],
       "@/utils/*": ["src/lib/utils"]
-    }  },
+    },
+    "types": ["vite/client"]
+  },
   "include": ["src/client/**/*", "src/lib/**/*", "src/types/**/*"],
   "exclude": ["node_modules", "dist", "src/server/**/*"]
 }

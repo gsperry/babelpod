@@ -31,17 +31,9 @@ const http = createServer(app);
 const io = new SocketIOServer(http, {
   cors: isProd ? {
     origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost'],
-    methods: ["GET", "POST"],
-    credentials: true
   } : {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"],
-    credentials: true
-  },
-  allowEIO3: true,
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000
+    origin: process.env.DEV_CLIENT_URL || "http://localhost:5173",
+  }
 });
 
 // Create instances of managers
