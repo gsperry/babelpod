@@ -21,7 +21,7 @@ A modern audio routing system that connects various inputs (Line-in, Bluetooth, 
 - Individual volume controls per device
 - Device grouping support
 - Audio preset support
-- Dark/Light mode support
+- Dark mode interface optimized for touch screens
 - Responsive design
 - Real-time status updates
 
@@ -37,7 +37,65 @@ A modern audio routing system that connects various inputs (Line-in, Bluetooth, 
 
 ## Prerequisites
 
-### For Linux:
+### For Raspberry Pi (Raspbian):
+
+1. Install required packages:
+```bash
+# Audio and Bluetooth dependencies
+sudo apt-get update
+sudo apt-get install -y bluez pulseaudio-module-bluetooth
+sudo apt-get install -y libasound2-dev avahi-daemon
+```
+
+2. Configure Bluetooth service permissions:
+```bash
+# Create a new policy file
+sudo nano /etc/polkit-1/localauthority/50-local.d/46-allow-bluetooth-service.pkla
+```
+
+Add this content:
+```ini
+[Allow users to manage bluetooth service]
+Identity=unix-group:bluetooth
+Action=org.freedesktop.systemd1.manage-units;org.freedesktop.systemd1.manage-unit-files
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes
+```
+
+3. Set up user permissions:
+```bash
+# Create bluetooth group and add your user
+sudo usermod -aG bluetooth $USER
+
+# Add user to audio group
+sudo usermod -aG audio $USER
+```
+
+4. Configure Bluetooth settings:
+```bash
+sudo nano /etc/bluetooth/main.conf
+```
+
+Add these lines:
+```ini
+[Policy]
+AutoEnable=true
+
+[General]
+ControllerMode = bredr
+```
+
+5. Apply changes:
+```bash
+# Restart Bluetooth service
+sudo systemctl restart bluetooth
+
+# Reboot to apply all changes
+sudo reboot
+```
+
+### For Other Linux Distributions:
 
 1. Install required packages:
 ```bash
@@ -52,7 +110,7 @@ sudo apt-get install libasound2-dev avahi-daemon
 sudo nano /etc/polkit-1/rules.d/51-bluetooth.rules
 ```
 
-Add this content to the file:
+Add this content:
 ```javascript
 polkit.addRule(function(action, subject) {
     if ((action.id == "org.bluez.device.pair" ||
